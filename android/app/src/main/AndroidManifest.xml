@@ -1,4 +1,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- İnternet izni -->
+    <uses-permission android:name="android.permission.INTERNET"/>
+
     <application
         android:label="study_track_proje"
         android:name="${applicationName}"

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'screens/auth/login_screen.dart';
+import 'screens/main_layout.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -13,53 +15,56 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const MaterialApp(
-      home: FirebaseTestPage(),
+    return MaterialApp(
+      title: 'StudyTrack',
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(
+        primarySwatch: Colors.blue,
+        useMaterial3: true,
+        inputDecorationTheme: InputDecorationTheme(
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(8),
+          ),
+          filled: true,
+          fillColor: Colors.grey[50],
+        ),
+        elevatedButtonTheme: ElevatedButtonThemeData(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.blue,
+            foregroundColor: Colors.white,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+            ),
+          ),
+        ),
+      ),
+      home: const AuthWrapper(),
     );
   }
 }
 
-class FirebaseTestPage extends StatelessWidget {
-  const FirebaseTestPage({super.key});
-
-  Future<void> testFirestore() async {
-    await FirebaseFirestore.instance
-        .collection('test')
-        .doc('connection')
-        .set({
-      'message': 'Firebase bağlantısı başarılı 🎉',
-      'time': DateTime.now().toString(),
-    });
-  }
+class AuthWrapper extends StatelessWidget {
+  const AuthWrapper({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Firebase Test'),
-        backgroundColor: Colors.green,
-      ),
-      body: Center(
-        child: ElevatedButton(
-          onPressed: () async {
-            try {
-              await testFirestore();
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Firestore’a veri yazıldı ✅'),
-                ),
-              );
-            } catch (e) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('Hata ❌: $e'),
-                ),
-              );
-            }
-          },
-          child: const Text('Firebase Test Et'),
-        ),
-      ),
+    return StreamBuilder<User?>(
+      stream: FirebaseAuth.instance.authStateChanges(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Scaffold(
+            body: Center(
+              child: CircularProgressIndicator(),
+            ),
+          );
+        }
+
+        if (snapshot.hasData) {
+          return const MainLayout();
+        }
+
+        return const LoginScreen();
+      },
     );
   }
 }
