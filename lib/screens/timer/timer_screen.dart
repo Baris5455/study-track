@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../services/auth_service.dart';
 import '../../services/firestore_service.dart';
+import '../../models/goal_model.dart';
 import '../../utils/constants.dart';
 
 class TimerScreen extends StatefulWidget {
@@ -21,6 +22,32 @@ class _TimerScreenState extends State<TimerScreen> {
   Timer? _timer;
   bool _isRunning = false;
 
+  // Hedefler
+  List<GoalModel> _goals = [];
+  bool _goalsLoaded = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadGoals();
+  }
+
+  // Kullanıcının hedeflerini yükle
+  Future<void> _loadGoals() async {
+    try {
+      final user = _authService.currentUser;
+      if (user != null) {
+        final goals = await _firestoreService.getUserGoals(user.uid);
+        setState(() {
+          _goals = goals;
+          _goalsLoaded = true;
+        });
+      }
+    } catch (e) {
+      setState(() => _goalsLoaded = true);
+    }
+  }
+
   @override
   void dispose() {
     _timer?.cancel();
@@ -33,7 +60,7 @@ class _TimerScreenState extends State<TimerScreen> {
       _isRunning = true;
     });
 
-    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+    _timer = Timer.periodic(const Duration(seconds: 1), (_) {
       setState(() {
         _seconds++;
       });
@@ -57,75 +84,92 @@ class _TimerScreenState extends State<TimerScreen> {
     });
   }
 
-  // Çalışmayı bitirme - Dialog göster
+  // Çalışma bittiğinde çalışır (Timer ile)
   Future<void> _finishStudy() async {
     if (_seconds < 60) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('En az 1 dakika calismaniz gerekiyor!'),
-          backgroundColor: Colors.orange,
-        ),
+        const SnackBar(content: Text('En az 1 dakika...'), backgroundColor: Colors.orange),
       );
       return;
     }
 
-    _timer?.cancel();
-    setState(() {
-      _isRunning = false;
-    });
-
+    _pauseTimer();
     final minutes = (_seconds / 60).round();
 
-    // Dialog göster
-    final result = await showDialog<Map<String, String?>>(
+    final result = await showDialog<Map<String, dynamic>>(
       context: context,
       barrierDismissible: false,
-      builder: (context) => _SaveStudyDialog(totalMinutes: minutes),
+      builder: (context) => _SelectGoalDialog(
+        goals: _goals,
+        totalMinutes: minutes,
+      ),
     );
 
     if (result != null) {
-      // Kaydet
-      await _saveStudySession(
-        subject: result['subject']!,
+      await _handleSaveOperation(
+        subject: result['subject'],
         category: result['category'],
         minutes: minutes,
+        goalId: result['goalId'],
       );
     }
   }
 
-  // Firestore'a kaydetme
-  Future<void> _saveStudySession({
+  // Manuel çalışma ekleme butonu
+  Future<void> _showManualAddDialog() async {
+    final result = await showDialog<Map<String, dynamic>>(
+      context: context,
+      builder: (context) => _ManualSelectGoalDialog(goals: _goals),
+    );
+
+    if (result != null) {
+      // BURADAKİ TÜM TEKRAR EDEN KODLAR SİLİNDİ VE ORTAK FONKSİYON KULLANILDI
+      await _handleSaveOperation(
+        subject: result['subject'],
+        category: result['category'],
+        minutes: result['minutes'], // Manuel girilen süre
+        goalId: result['goalId'],
+      );
+    }
+  }
+
+  // ORTAK KAYIT FONKSİYONU (Hem Timer bitince hem Manuel eklemede çalışır)
+  Future<void> _handleSaveOperation({
     required String subject,
     String? category,
     required int minutes,
+    String? goalId,
   }) async {
     try {
       // Loading göster
-      if (mounted) {
-        showDialog(
-          context: context,
-          barrierDismissible: false,
-          builder: (context) => const Center(
-            child: CircularProgressIndicator(),
-          ),
-        );
-      }
+      if (!mounted) return;
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const Center(child: CircularProgressIndicator()),
+      );
 
-      // Firestore'a kaydet
       final user = _authService.currentUser;
       if (user != null) {
+        // 1. Çalışmayı kaydet
         await _firestoreService.addStudySession(
           userId: user.uid,
           subject: subject,
           category: category,
           durationMinutes: minutes,
         );
+
+        // 2. Hedef varsa ilerlemeyi güncelle
+        if (goalId != null) {
+          await _firestoreService.updateGoalProgress(
+            goalId: goalId,
+            minutesToAdd: minutes,
+          );
+        }
       }
 
       // Loading kapat
-      if (mounted) {
-        Navigator.pop(context);
-      }
+      if (mounted) Navigator.pop(context);
 
       // Başarı mesajı
       if (mounted) {
@@ -137,42 +181,22 @@ class _TimerScreenState extends State<TimerScreen> {
         );
       }
 
-      // Timer'ı sıfırla
+      // Ekranı temizle ve hedefleri yenile
       setState(() {
         _seconds = 0;
         _isRunning = false;
       });
-    } catch (e) {
-      // Loading kapat
-      if (mounted) {
-        Navigator.pop(context);
-      }
+      _loadGoals();
 
-      // Hata mesajı
+    } catch (e) {
+      // Hata durumunda loading kapat
+      if (mounted) Navigator.pop(context);
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(e.toString()),
-            backgroundColor: Colors.red,
-          ),
+          SnackBar(content: Text(e.toString()), backgroundColor: Colors.red),
         );
       }
-    }
-  }
-
-  // Manuel çalışma ekleme
-  Future<void> _showManualAddDialog() async {
-    final result = await showDialog<Map<String, dynamic>>(
-      context: context,
-      builder: (context) => const _ManualAddDialog(),
-    );
-
-    if (result != null) {
-      await _saveStudySession(
-        subject: result['subject'] as String,
-        category: result['category'] as String?,
-        minutes: result['minutes'] as int,
-      );
     }
   }
 
@@ -196,7 +220,6 @@ class _TimerScreenState extends State<TimerScreen> {
         backgroundColor: AppColors.primary,
         foregroundColor: Colors.white,
         actions: [
-          // Manuel ekle butonu
           IconButton(
             icon: const Icon(Icons.add),
             onPressed: _showManualAddDialog,
@@ -219,10 +242,7 @@ class _TimerScreenState extends State<TimerScreen> {
                   padding: const EdgeInsets.all(16.0),
                   child: Row(
                     children: [
-                      Icon(
-                        Icons.info_outline,
-                        color: AppColors.info,
-                      ),
+                      Icon(Icons.info_outline, color: AppColors.info),
                       const SizedBox(width: 12),
                       Expanded(
                         child: Text(
@@ -243,7 +263,6 @@ class _TimerScreenState extends State<TimerScreen> {
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      // Circular timer
                       Container(
                         width: 250,
                         height: 250,
@@ -268,34 +287,24 @@ class _TimerScreenState extends State<TimerScreen> {
                                   fontSize: 48,
                                   fontWeight: FontWeight.bold,
                                   color: AppColors.primary,
-                                  fontFeatures: [
-                                    FontFeature.tabularFigures(),
-                                  ],
+                                  fontFeatures: [FontFeature.tabularFigures()],
                                 ),
                               ),
                               const SizedBox(height: 8),
                               Text(
                                 _isRunning ? 'Calisiyor...' : 'Durakladi',
                                 style: AppStyles.bodyMedium.copyWith(
-                                  color: _isRunning
-                                      ? AppColors.success
-                                      : AppColors.textSecondary,
+                                  color: _isRunning ? AppColors.success : AppColors.textSecondary,
                                 ),
                               ),
                             ],
                           ),
                         ),
                       ),
-
                       const SizedBox(height: 40),
-
-                      // Dakika gösterimi
                       if (_seconds >= 60)
                         Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 20,
-                            vertical: 10,
-                          ),
+                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
                           decoration: BoxDecoration(
                             color: AppColors.success.withOpacity(0.1),
                             borderRadius: BorderRadius.circular(20),
@@ -316,38 +325,26 @@ class _TimerScreenState extends State<TimerScreen> {
               // Kontrol butonları
               Column(
                 children: [
-                  // Ana buton (Başlat/Duraklat)
                   SizedBox(
                     width: double.infinity,
                     height: 60,
                     child: ElevatedButton.icon(
                       onPressed: _isRunning ? _pauseTimer : _startTimer,
-                      icon: Icon(
-                        _isRunning ? Icons.pause : Icons.play_arrow,
-                        size: 28,
-                      ),
+                      icon: Icon(_isRunning ? Icons.pause : Icons.play_arrow, size: 28),
                       label: Text(
                         _isRunning ? 'Duraklat' : 'Baslat',
                         style: const TextStyle(fontSize: 18),
                       ),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: _isRunning
-                            ? AppColors.warning
-                            : AppColors.success,
+                        backgroundColor: _isRunning ? AppColors.warning : AppColors.success,
                         foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                       ),
                     ),
                   ),
-
                   const SizedBox(height: 12),
-
-                  // Sıfırla ve Bitir butonları
                   Row(
                     children: [
-                      // Sıfırla
                       Expanded(
                         child: SizedBox(
                           height: 50,
@@ -358,17 +355,12 @@ class _TimerScreenState extends State<TimerScreen> {
                             style: OutlinedButton.styleFrom(
                               foregroundColor: AppColors.danger,
                               side: const BorderSide(color: AppColors.danger),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                             ),
                           ),
                         ),
                       ),
-
                       const SizedBox(width: 12),
-
-                      // Bitir ve Kaydet
                       Expanded(
                         child: SizedBox(
                           height: 50,
@@ -379,9 +371,7 @@ class _TimerScreenState extends State<TimerScreen> {
                             style: ElevatedButton.styleFrom(
                               backgroundColor: AppColors.primary,
                               foregroundColor: Colors.white,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                             ),
                           ),
                         ),
@@ -398,235 +388,240 @@ class _TimerScreenState extends State<TimerScreen> {
   }
 }
 
-// Çalışma bitince gösterilecek dialog
-class _SaveStudyDialog extends StatefulWidget {
+// ============= DIALOG: TIMER SONRASI SEÇİM =============
+class _SelectGoalDialog extends StatefulWidget {
+  final List<GoalModel> goals;
   final int totalMinutes;
 
-  const _SaveStudyDialog({required this.totalMinutes});
+  const _SelectGoalDialog({required this.goals, required this.totalMinutes});
 
   @override
-  State<_SaveStudyDialog> createState() => _SaveStudyDialogState();
+  State<_SelectGoalDialog> createState() => _SelectGoalDialogState();
 }
 
-class _SaveStudyDialogState extends State<_SaveStudyDialog> {
-  final _formKey = GlobalKey<FormState>();
-  final _subjectController = TextEditingController();
-  final _categoryController = TextEditingController();
+class _SelectGoalDialogState extends State<_SelectGoalDialog> {
+  String? _selectedGoalId;
 
-  @override
-  void dispose() {
-    _subjectController.dispose();
-    _categoryController.dispose();
-    super.dispose();
-  }
-
-  void _save() {
-    if (_formKey.currentState!.validate()) {
-      final result = <String, String?>{
-        'subject': _subjectController.text.trim(),
-        'category': _categoryController.text.trim().isEmpty
-            ? null
-            : _categoryController.text.trim(),
-      };
-      Navigator.of(context).pop(result);
+  void _next() {
+    if (_selectedGoalId != null) {
+      final selectedGoal = widget.goals.firstWhere((g) => g.id == _selectedGoalId);
+      Navigator.of(context).pop({
+        'goalId': selectedGoal.id,
+        'subject': selectedGoal.subject,
+        'category': selectedGoal.category,
+      });
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Lutfen listeden bir ders secin!'),
+          backgroundColor: Colors.orange,
+        ),
+      );
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text('Calisma Bilgileri'),
-      content: Form(
-        key: _formKey,
+      title: Column(
+        children: [
+          Text('Calisma Tamamlandi', style: AppStyles.heading3),
+          const SizedBox(height: 4),
+          Text(
+            '${widget.totalMinutes} dakika',
+            style: AppStyles.bodyLarge.copyWith(color: AppColors.success, fontWeight: FontWeight.bold),
+          ),
+        ],
+      ),
+      content: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              '${widget.totalMinutes} dakika calisma kaydedilecek',
-              style: AppStyles.bodyMedium.copyWith(
-                color: AppColors.success,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 20),
-
-            // Ders adı
-            TextFormField(
-              controller: _subjectController,
-              autofocus: true,
-              textInputAction: TextInputAction.next,
-              decoration: const InputDecoration(
-                labelText: 'Ders Adi *',
-                hintText: 'Ornek: Matematik',
-                border: OutlineInputBorder(),
-                prefixIcon: Icon(Icons.book),
-              ),
-              validator: (value) {
-                if (value == null || value.trim().isEmpty) {
-                  return 'Ders adi gerekli';
-                }
-                return null;
-              },
-            ),
+            Text('Hangi ders icin calistin?', style: AppStyles.bodyLarge.copyWith(fontWeight: FontWeight.bold)),
             const SizedBox(height: 16),
-
-            // Kategori (opsiyonel)
-            TextFormField(
-              controller: _categoryController,
-              textInputAction: TextInputAction.done,
-              decoration: const InputDecoration(
-                labelText: 'Kategori (Opsiyonel)',
-                hintText: 'Ornek: Sinav Hazirligi',
-                border: OutlineInputBorder(),
-                prefixIcon: Icon(Icons.category),
-              ),
-              onFieldSubmitted: (_) => _save(),
-            ),
-            const SizedBox(height: 8),
-
-            Text(
-              '* Ders adi zorunludur',
-              style: AppStyles.bodySmall.copyWith(
-                color: AppColors.textSecondary,
-              ),
-            ),
+            if (widget.goals.isEmpty)
+              _buildEmptyGoalsWarning()
+            else
+              ...widget.goals.map((goal) => _buildGoalRadioTile(goal)),
           ],
         ),
       ),
       actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Iptal'),
-        ),
-        ElevatedButton(
-          onPressed: _save,
-          child: const Text('Kaydet'),
-        ),
+        TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Iptal')),
+        ElevatedButton(onPressed: _next, child: const Text('Kaydet')),
       ],
+    );
+  }
+
+  Widget _buildEmptyGoalsWarning() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(color: Colors.orange[50], borderRadius: BorderRadius.circular(8)),
+      child: Row(
+        children: [
+          Icon(Icons.info_outline, color: Colors.orange[700]),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              'Henuz hedef eklemediniz. Once "Hedefler" sayfasindan ders eklemelisiniz.',
+              style: TextStyle(fontSize: 12, color: Colors.orange[700]),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildGoalRadioTile(GoalModel goal) {
+    final newProgress = goal.currentWeekMinutes + widget.totalMinutes;
+    final newPercentage = (newProgress / goal.weeklyTargetMinutes * 100).clamp(0, 100);
+
+    return RadioListTile<String>(
+      value: goal.id,
+      groupValue: _selectedGoalId,
+      onChanged: (value) => setState(() => _selectedGoalId = value),
+      title: Text(goal.subject),
+      subtitle: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (goal.category != null) Text(goal.category!, style: const TextStyle(fontSize: 12, color: Colors.grey)),
+          Text('Hedef: ${goal.currentWeekMinutes}/${goal.weeklyTargetMinutes} dk', style: const TextStyle(fontSize: 12)),
+          const SizedBox(height: 4),
+          Row(
+            children: [
+              Expanded(
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(4),
+                  child: LinearProgressIndicator(
+                    value: newPercentage / 100,
+                    minHeight: 6,
+                    backgroundColor: Colors.grey[300],
+                    valueColor: AlwaysStoppedAnimation<Color>(newPercentage >= 100 ? Colors.green : Colors.blue),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text('+${widget.totalMinutes}dk', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.green)),
+            ],
+          ),
+        ],
+      ),
+      secondary: Icon(Icons.book, color: _selectedGoalId == goal.id ? AppColors.primary : Colors.grey),
     );
   }
 }
 
-// Manuel çalışma ekleme dialog
-class _ManualAddDialog extends StatefulWidget {
-  const _ManualAddDialog();
+// ============= DIALOG: MANUEL EKLEME =============
+class _ManualSelectGoalDialog extends StatefulWidget {
+  final List<GoalModel> goals;
+
+  const _ManualSelectGoalDialog({required this.goals});
 
   @override
-  State<_ManualAddDialog> createState() => _ManualAddDialogState();
+  State<_ManualSelectGoalDialog> createState() => _ManualSelectGoalDialogState();
 }
 
-class _ManualAddDialogState extends State<_ManualAddDialog> {
-  final _formKey = GlobalKey<FormState>();
-  final _subjectController = TextEditingController();
-  final _categoryController = TextEditingController();
-  final _minutesController = TextEditingController();
+class _ManualSelectGoalDialogState extends State<_ManualSelectGoalDialog> {
+  String? _selectedGoalId;
 
-  @override
-  void dispose() {
-    _subjectController.dispose();
-    _categoryController.dispose();
-    _minutesController.dispose();
-    super.dispose();
+  Future<void> _next() async {
+    if (_selectedGoalId != null) {
+      final selectedGoal = widget.goals.firstWhere((g) => g.id == _selectedGoalId);
+      final minutes = await _showMinutesDialog();
+
+      if (minutes != null && mounted) {
+        Navigator.of(context).pop({
+          'goalId': selectedGoal.id,
+          'subject': selectedGoal.subject,
+          'category': selectedGoal.category,
+          'minutes': minutes,
+        });
+      }
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Lutfen bir ders secin!'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+    }
   }
 
-  void _save() {
-    if (_formKey.currentState!.validate()) {
-      final result = {
-        'subject': _subjectController.text.trim(),
-        'category': _categoryController.text.trim().isEmpty
-            ? null
-            : _categoryController.text.trim(),
-        'minutes': int.parse(_minutesController.text),
-      };
-      Navigator.of(context).pop(result);
-    }
+  Future<int?> _showMinutesDialog() async {
+    final controller = TextEditingController();
+    return showDialog<int>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Calisma Suresi'),
+        content: TextFormField(
+          controller: controller,
+          autofocus: true,
+          keyboardType: TextInputType.number,
+          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+          decoration: const InputDecoration(
+            labelText: 'Sure (Dakika)',
+            hintText: '60',
+            border: OutlineInputBorder(),
+            prefixIcon: Icon(Icons.timer),
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Iptal')),
+          ElevatedButton(
+            onPressed: () {
+              final minutes = int.tryParse(controller.text);
+              if (minutes != null && minutes > 0 && minutes <= 1440) {
+                Navigator.pop(context, minutes);
+              } else {
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Gecerli bir sure girin (1-1440)'), backgroundColor: Colors.red));
+              }
+            },
+            child: const Text('Tamam'),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
       title: const Text('Manuel Calisma Ekle'),
-      content: Form(
-        key: _formKey,
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Ders adı
-              TextFormField(
-                controller: _subjectController,
-                autofocus: true,
-                textInputAction: TextInputAction.next,
-                decoration: const InputDecoration(
-                  labelText: 'Ders Adi *',
-                  hintText: 'Ornek: Matematik',
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.book),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Hangi ders icin calistin?', style: AppStyles.bodyLarge.copyWith(fontWeight: FontWeight.bold)),
+            const SizedBox(height: 16),
+            if (widget.goals.isEmpty)
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(color: Colors.orange[50], borderRadius: BorderRadius.circular(8)),
+                child: Row(
+                  children: [
+                    Icon(Icons.info_outline, color: Colors.orange[700]),
+                    const SizedBox(width: 12),
+                    Expanded(child: Text('Henuz hedef eklemediniz. Once hedef eklemelisiniz.', style: TextStyle(fontSize: 12, color: Colors.orange[700]))),
+                  ],
                 ),
-                validator: (value) {
-                  if (value == null || value.trim().isEmpty) {
-                    return 'Ders adi gerekli';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 16),
-
-              // Kategori (opsiyonel)
-              TextFormField(
-                controller: _categoryController,
-                textInputAction: TextInputAction.next,
-                decoration: const InputDecoration(
-                  labelText: 'Kategori (Opsiyonel)',
-                  hintText: 'Ornek: Sinav Hazirligi',
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.category),
-                ),
-              ),
-              const SizedBox(height: 16),
-
-              // Süre
-              TextFormField(
-                controller: _minutesController,
-                keyboardType: TextInputType.number,
-                textInputAction: TextInputAction.done,
-                inputFormatters: [
-                  FilteringTextInputFormatter.digitsOnly,
-                ],
-                decoration: const InputDecoration(
-                  labelText: 'Sure (Dakika) *',
-                  hintText: '60',
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.timer),
-                ),
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Sure gerekli';
-                  }
-                  final minutes = int.tryParse(value);
-                  if (minutes == null || minutes <= 0) {
-                    return 'Gecerli bir sure girin';
-                  }
-                  if (minutes > 1440) {
-                    return 'Sure 1440 dakikadan fazla olamaz';
-                  }
-                  return null;
-                },
-                onFieldSubmitted: (_) => _save(),
-              ),
-            ],
-          ),
+              )
+            else
+              ...widget.goals.map((goal) => RadioListTile<String>(
+                value: goal.id,
+                groupValue: _selectedGoalId,
+                onChanged: (value) => setState(() => _selectedGoalId = value),
+                title: Text(goal.subject),
+                subtitle: goal.category != null ? Text(goal.category!) : null,
+                secondary: const Icon(Icons.book),
+              )),
+          ],
         ),
       ),
       actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Iptal'),
-        ),
-        ElevatedButton(
-          onPressed: _save,
-          child: const Text('Ekle'),
-        ),
+        TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Iptal')),
+        ElevatedButton(onPressed: _next, child: const Text('Devam')),
       ],
     );
   }
