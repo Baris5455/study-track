@@ -84,7 +84,7 @@ class _TimerScreenState extends State<TimerScreen> {
     });
   }
 
-  // Çalışma bittiğinde çalışır (Timer ile)
+  // Çalışma bittiğinde çalışır
   Future<void> _finishStudy() async {
     if (_seconds < 60) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -94,6 +94,11 @@ class _TimerScreenState extends State<TimerScreen> {
     }
 
     _pauseTimer();
+
+    await _loadGoals();
+
+    if (!mounted) return;
+
     final minutes = (_seconds / 60).round();
 
     final result = await showDialog<Map<String, dynamic>>(
@@ -117,17 +122,21 @@ class _TimerScreenState extends State<TimerScreen> {
 
   // Manuel çalışma ekleme butonu
   Future<void> _showManualAddDialog() async {
+    // ÇÖZÜM BURADA: Dialog açılmadan önce güncel listeyi çek
+    await _loadGoals();
+
+    if (!mounted) return; // Sayfa kapandıysa işlemi durdur
+
     final result = await showDialog<Map<String, dynamic>>(
       context: context,
       builder: (context) => _ManualSelectGoalDialog(goals: _goals),
     );
 
     if (result != null) {
-      // BURADAKİ TÜM TEKRAR EDEN KODLAR SİLİNDİ VE ORTAK FONKSİYON KULLANILDI
       await _handleSaveOperation(
         subject: result['subject'],
         category: result['category'],
-        minutes: result['minutes'], // Manuel girilen süre
+        minutes: result['minutes'],
         goalId: result['goalId'],
       );
     }

@@ -1,6 +1,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/study_session_model.dart';
 import '../models/goal_model.dart';
+import '../models/post_model.dart';
+import '../models/user_model.dart';
 
 class FirestoreService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -294,4 +296,90 @@ class FirestoreService {
       );
     }
   }
+
+  // =============== COMMUNITY (TOPLULUK) ===============
+
+  // Paylaşım Ekleme
+  Future<void> addPost({
+    required String userId,
+    required String userName,
+    required String message,
+  }) async {
+    try {
+      final docRef = _firestore.collection('posts').doc();
+
+      final post = PostModel(
+        id: docRef.id,
+        userId: userId,
+        userName: userName,
+        message: message,
+        createdAt: DateTime.now(),
+        // Resim ve beğeni şimdilik boş
+        likesCount: 0,
+        imageUrl: null,
+      );
+
+      await docRef.set(post.toJson());
+    } catch (e) {
+      throw 'Paylasim gonderilemedi: $e';
+    }
+  }
+
+  // Paylaşımları Getirme (Yeniden eskiye)
+  Future<List<PostModel>> getPosts() async {
+    try {
+      final querySnapshot = await _firestore
+          .collection('posts')
+          .orderBy('createdAt', descending: true) // En yeni en üstte
+          .limit(50) // Performans için son 50 mesajı çekelim
+          .get();
+
+      return querySnapshot.docs
+          .map((doc) => PostModel.fromJson(doc.data()))
+          .toList();
+    } catch (e) {
+      throw 'Paylasimlar yuklenemedi: $e';
+    }
+  }
+
+  // =============== USER PROFILE ===============
+
+  // Kullanıcı verisini tekil olarak çekme
+  Future<UserModel?> getUser(String userId) async {
+    try {
+      final doc = await _firestore.collection('users').doc(userId).get();
+      if (doc.exists) {
+        // Senin modelindeki fromJson metodunu kullanıyoruz
+        return UserModel.fromJson(doc.data()!);
+      }
+      return null;
+    } catch (e) {
+      print('Kullanici verisi cekilemedi: $e');
+      return null;
+    }
+  }
+
+  // Kullanıcı bilgilerini güncelleme (Senin değişken isimlerine göre)
+  Future<void> updateUserProfile({
+    required String userId,
+    String? displayName, // 'name' yerine
+    String? department,
+    String? year,        // 'grade' yerine
+    String? photoURL,    // 'photoUrl' yerine
+  }) async {
+    try {
+      final updateData = <String, dynamic>{};
+
+      // Sadece dolu olan alanları güncelle
+      if (displayName != null) updateData['displayName'] = displayName;
+      if (department != null) updateData['department'] = department;
+      if (year != null) updateData['year'] = year;
+      if (photoURL != null) updateData['photoURL'] = photoURL;
+
+      await _firestore.collection('users').doc(userId).update(updateData);
+    } catch (e) {
+      throw 'Profil guncellenemedi: $e';
+    }
+  }
 }
+

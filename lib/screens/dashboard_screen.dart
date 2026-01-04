@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
 import '../services/firestore_service.dart';
 import '../utils/constants.dart';
-import '../models/goal_model.dart'; // Eğer kullanılıyorsa kalsın, kullanılmıyorsa silinebilir
+import '../screens/community/community_screen.dart';
+
 
 class DashboardScreen extends StatefulWidget {
   final Function(int) onNavigate;
@@ -206,10 +207,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         onTap: () => widget.onNavigate(3),
                       ),
                       _buildQuickAccessButton(
-                        icon: Icons.person,
-                        label: 'Profil',
-                        color: Colors.grey,
-                        onTap: () => widget.onNavigate(4),
+                        icon: Icons.groups,
+                        label: 'Topluluk',
+                        color: Colors.indigo,
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (context) => const CommunityScreen()),
+                          );
+                        },
                       ),
                     ],
                   ),
