@@ -1,0 +1,68 @@
+{
+  "users": [
+    {
+      "uid": "user_123456789",
+      "displayName": "Ahmet Yılmaz",
+      "email": "ahmet@student.edu.tr",
+      "department": "Bilgisayar Mühendisliği",
+      "year": "4. Sınıf",
+      "createdAt": "2024-01-01T10:00:00Z"
+    }
+  ],
+  "study_sessions": [
+    {
+      "id": "session_abc123",
+      "userId": "user_123456789",
+      "subject": "Matematik",
+      "durationMinutes": 45,
+      "date": "2024-01-10T14:30:00Z",
+      "category": "Ders Çalışma",
+      "createdAt": "2024-01-10T14:30:00Z"
+    }
+  ],
+  "goals": [
+    {
+      "id": "goal_xyz789",
+      "userId": "user_123456789",
+      "subject": "Algoritma",
+      "weeklyTargetMinutes": 300,
+      "currentWeekMinutes": 120,
+      "lastUpdated": "2024-01-10T20:00:00Z",
+      "category": "Okul",
+      "createdAt": "2024-01-05T09:00:00Z"
+    }
+  ],
+  "general_goals": [
+    {
+      "userId": "user_123456789",
+      "dailyTargetMinutes": 120,
+      "weeklyTargetMinutes": 840,
+      "lastUpdated": "2024-01-10T08:00:00Z"
+    }
+  ],
+  "posts": [
+    {
+      "id": "post_def456",
+      "userId": "user_123456789",
+      "userName": "Ahmet Yılmaz",
+      "message": "Bugün hedeflerimi tamamladım, harika hissediyorum! 🚀",
+      "likes": [
+        "user_987654321",
+        "user_555666777"
+      ],
+      "createdAt": "2024-01-10T18:00:00Z",
+      "comments": [
+        {
+          "userName": "Ayşe Demir",
+          "message": "Tebrikler, darısı başıma!",
+          "createdAt": "2024-01-10T18:15:00Z"
+        },
+        {
+          "userName": "Mehmet Kaya",
+          "message": "Hangi kaynaktan çalıştın?",
+          "createdAt": "2024-01-10T18:30:00Z"
+        }
+      ]
+    }
+  ]
+}
