@@ -1,16 +1,51 @@
-# study_track_proje
+# Kurulum ve Çalıştırma Adımları
 
-A new Flutter project.
+Projeyi yerel makinede çalıştırmak için aşağıdaki adımları izleyin.
 
-## Getting Started
+## Ön Koşullar
 
-This project is a starting point for a Flutter application.
+Bilgisayarınızda aşağıdaki araçların kurulu olması gerekmektedir:
+- Flutter SDK
+- Git
+- Android Emülatör veya fiziksel bir Android cihaz
 
-A few resources to get you started if this is your first Flutter project:
+## 1. Projeyi İndirme
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
+Proje dosyalarını GitHub deposundan klonlayın veya zip dosyasından çıkarın:
+```bash
+git clone <repository-url>
+cd <proje-dizini>
+```
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+## 2. Bağımlılıkların Yüklenmesi
+
+Terminalde proje dizinine giderek gerekli paketleri indirin:
+```bash
+flutter pub get
+```
+
+## 3. Firebase Yapılandırması
+
+Firebase entegrasyonu için aşağıdaki adımları tamamlayın:
+
+- Projenizin [Firebase Console](https://console.firebase.google.com/) üzerinden oluşturulan proje ile eşleştiğinden emin olun
+- Güncel `google-services.json` dosyasını `android/app/` dizinine yerleştirin
+- Terminalde aşağıdaki komutu çalıştırarak `firebase_options.dart` dosyasını güncelleyin:
+```bash
+flutterfire configure
+```
+
+## 4. Uygulamanın Başlatılması
+
+- Android emülatörünü başlatın
+- Terminalde veya IDE üzerinde aşağıdaki komutu çalıştırın:
+```bash
+flutter run
+```
+
+## 5. İzinler
+
+Uygulamanın düzgün çalışması için `AndroidManifest.xml` dosyasında internet izninin (`android.permission.INTERNET`) tanımlı olduğundan emin olun.
+```xml
+<uses-permission android:name="android.permission.INTERNET" />
+```
