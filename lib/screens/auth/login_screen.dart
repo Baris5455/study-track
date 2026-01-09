@@ -31,24 +31,30 @@ class _LoginScreenState extends State<LoginScreen> {
       setState(() => _isLoading = true);
 
       try {
+        // Giriş işlemini başlat
         await _authService.signInWithEmail(
           email: _emailController.text.trim(),
           password: _passwordController.text,
         );
 
-        // Başarılı giriş - navigation main.dart'ta halledilecek
       } catch (e) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
+          setState(() => _isLoading = false);
+
+          // POPUP (Dialog) Gösterimi
+          showDialog(
+            context: context,
+            builder: (context) => AlertDialog(
+              title: const Text("Giriş Başarısız"),
               content: Text(e.toString()),
-              backgroundColor: Colors.red,
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text("Tamam"),
+                ),
+              ],
             ),
           );
-        }
-      } finally {
-        if (mounted) {
-          setState(() => _isLoading = false);
         }
       }
     }
@@ -67,7 +73,6 @@ class _LoginScreenState extends State<LoginScreen> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  // Logo veya başlık
                   Icon(
                     Icons.school,
                     size: 80,
@@ -104,7 +109,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         return 'E-posta adresi gerekli';
                       }
                       if (!value.contains('@')) {
-                        return 'Geçerli bir e-posta adresi girin';
+                        return 'Geçerli bir e-posta adresi giriniz';
                       }
                       return null;
                     },

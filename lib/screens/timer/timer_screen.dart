@@ -122,7 +122,6 @@ class _TimerScreenState extends State<TimerScreen> {
 
   // Manuel çalışma ekleme butonu
   Future<void> _showManualAddDialog() async {
-    // ÇÖZÜM BURADA: Dialog açılmadan önce güncel listeyi çek
     await _loadGoals();
 
     if (!mounted) return; // Sayfa kapandıysa işlemi durdur
@@ -142,7 +141,6 @@ class _TimerScreenState extends State<TimerScreen> {
     }
   }
 
-  // ORTAK KAYIT FONKSİYONU (Hem Timer bitince hem Manuel eklemede çalışır)
   Future<void> _handleSaveOperation({
     required String subject,
     String? category,
@@ -160,7 +158,6 @@ class _TimerScreenState extends State<TimerScreen> {
 
       final user = _authService.currentUser;
       if (user != null) {
-        // 1. Çalışmayı kaydet
         await _firestoreService.addStudySession(
           userId: user.uid,
           subject: subject,
@@ -168,7 +165,6 @@ class _TimerScreenState extends State<TimerScreen> {
           durationMinutes: minutes,
         );
 
-        // 2. Hedef varsa ilerlemeyi güncelle
         if (goalId != null) {
           await _firestoreService.updateGoalProgress(
             goalId: goalId,
@@ -255,7 +251,7 @@ class _TimerScreenState extends State<TimerScreen> {
                       const SizedBox(width: 12),
                       Expanded(
                         child: Text(
-                          'Calismaya baslayin, bitirince ders bilgilerini gireceksiniz.',
+                          'Çalışmaya başlayın, bitince ders seçebilirsiniz.',
                           style: AppStyles.bodySmall,
                         ),
                       ),

@@ -4,7 +4,7 @@ class GoalModel {
   final String id;
   final String userId;
   final String subject; // Ders adı
-  final String? category; // Kategori (opsiyonel)
+  final String? category; // Kategori
   final int weeklyTargetMinutes; // Haftalık hedef dakika
   final int currentWeekMinutes; // Bu hafta yapılan toplam dakika
   final DateTime createdAt;
@@ -93,8 +93,8 @@ class GeneralGoalsModel {
 
   GeneralGoalsModel({
     required this.userId,
-    this.dailyTargetMinutes = 120, // Varsayılan 120 dakika (2 saat)
-    this.weeklyTargetMinutes = 840, // Varsayılan 840 dakika (14 saat)
+    this.dailyTargetMinutes = 120, // Varsayılan 120 dakika
+    this.weeklyTargetMinutes = 840, // Varsayılan 840 dakika
     required this.lastUpdated,
   });
 

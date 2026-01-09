@@ -4,7 +4,7 @@ class StudySessionModel {
   final String id;
   final String userId;
   final String subject; // Ders adı
-  final String? category; // Kategori (opsiyonel)
+  final String? category; // Kategori
   final int durationMinutes;
   final DateTime date;
   final DateTime createdAt;

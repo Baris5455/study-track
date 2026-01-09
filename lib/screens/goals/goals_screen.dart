@@ -26,9 +26,7 @@ class _GoalsScreenState extends State<GoalsScreen> {
     _loadGoals();
   }
 
-  // EKSİK OLAN FONKSİYON BURASIYDI, GERİ EKLENDİ:
   Future<void> _loadGoals() async {
-    // Sadece ilk yüklemede loading göster, _handleOperation içinden çağrıldığında ekranı titretme
     if (_goals.isEmpty) {
       setState(() => _isLoading = true);
     }
@@ -60,17 +58,14 @@ class _GoalsScreenState extends State<GoalsScreen> {
   // ORTAK İŞLEM YÖNETİCİSİ
   Future<void> _handleOperation(Future<void> Function() operation, String successMessage) async {
     try {
-      // Loading dialog göster (İsteğe bağlı, işlem uzun sürerse kullanıcı anlasın)
       showDialog(
         context: context,
         barrierDismissible: false,
         builder: (context) => const Center(child: CircularProgressIndicator()),
       );
 
-      await operation(); // Verilen işlemi yap (Ekle/Sil/Güncelle)
-      await _loadGoals(); // Listeyi yenile
-
-      // Loading dialog'u kapat
+      await operation();
+      await _loadGoals();
       if (mounted) Navigator.pop(context);
 
       if (mounted) {
@@ -464,7 +459,6 @@ class _GoalsScreenState extends State<GoalsScreen> {
   }
 }
 
-// ============= DIALOG SINIFLARI =============
 
 class _GoalFormDialog extends StatefulWidget {
   final GoalModel? goal;

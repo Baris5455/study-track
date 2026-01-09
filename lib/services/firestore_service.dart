@@ -60,7 +60,7 @@ class FirestoreService {
     }
   }
 
-  // Kullanıcının bugünkü toplam çalışma süresini hesaplama (VAR OLAN FONKSİYON)
+  // Kullanıcının bugünkü toplam çalışma süresini hesaplama
   Future<int> getTodayTotalMinutes(String userId) async {
     try {
       final sessions = await getTodayStudySessions(userId);
@@ -72,20 +72,16 @@ class FirestoreService {
     }
   }
 
-  // Kullanıcının BU HAFTAKİ toplam çalışma süresini hesaplama (YENİ EKLENDİ)
   Future<int> getThisWeekTotalMinutes(String userId) async {
     try {
       final now = DateTime.now();
-      // Pazartesi gününü bul (weekday 1=Pazartesi, ... 7=Pazar)
-      // Bugünün tarihinden (bugün kaçıncı günse - 1) gün çıkararak Pazartesiye gideriz.
-      final startOfWeek = now.subtract(Duration(days: now.weekday - 1));
-      // Saatleri sıfırla (Pazartesi 00:00)
-      final startOfWeekMidnight = DateTime(startOfWeek.year, startOfWeek.month, startOfWeek.day);
+      final sevenDaysAgo = now.subtract(const Duration(days: 7));
+      final startDate = DateTime(sevenDaysAgo.year, sevenDaysAgo.month, sevenDaysAgo.day);
 
       final querySnapshot = await _firestore
           .collection('study_sessions')
           .where('userId', isEqualTo: userId)
-          .where('date', isGreaterThanOrEqualTo: Timestamp.fromDate(startOfWeekMidnight))
+          .where('date', isGreaterThanOrEqualTo: Timestamp.fromDate(startDate))
           .get();
 
       final sessions = querySnapshot.docs
@@ -314,8 +310,7 @@ class FirestoreService {
         userName: userName,
         message: message,
         createdAt: DateTime.now(),
-        // Resim ve beğeni şimdilik boş
-        likesCount: 0,
+        likes: [], // Boş liste ile başlatıyoruz
         imageUrl: null,
       );
 
@@ -325,13 +320,13 @@ class FirestoreService {
     }
   }
 
-  // Paylaşımları Getirme (Yeniden eskiye)
+  // Paylaşımları Getirme
   Future<List<PostModel>> getPosts() async {
     try {
       final querySnapshot = await _firestore
           .collection('posts')
-          .orderBy('createdAt', descending: true) // En yeni en üstte
-          .limit(50) // Performans için son 50 mesajı çekelim
+          .orderBy('createdAt', descending: true)
+          .limit(50)
           .get();
 
       return querySnapshot.docs
@@ -342,6 +337,54 @@ class FirestoreService {
     }
   }
 
+  Future<void> toggleLike(String postId, String userId) async {
+    try {
+      final docRef = _firestore.collection('posts').doc(postId);
+      final doc = await docRef.get();
+
+      if (doc.exists) {
+        List<dynamic> currentLikes = doc.data()?['likes'] ?? [];
+
+        if (currentLikes.contains(userId)) {
+          await docRef.update({
+            'likes': FieldValue.arrayRemove([userId])
+          });
+        } else {
+          await docRef.update({
+            'likes': FieldValue.arrayUnion([userId])
+          });
+        }
+      }
+    } catch (e) {
+      throw 'Begeni islemi basarisiz: $e';
+    }
+  }
+
+  Future<void> addComment(String postId, String userName, String message) async {
+    try {
+      await _firestore
+          .collection('posts')
+          .doc(postId)
+          .collection('comments')
+          .add({
+        'userName': userName,
+        'message': message,
+        'createdAt': FieldValue.serverTimestamp(), // Sunucu saati
+      });
+    } catch (e) {
+      throw 'Yorum eklenemedi: $e';
+    }
+  }
+
+  Stream<QuerySnapshot> getCommentsStream(String postId) {
+    return _firestore
+        .collection('posts')
+        .doc(postId)
+        .collection('comments')
+        .orderBy('createdAt', descending: false) // Eskiden yeniye sırala
+        .snapshots();
+  }
+
   // =============== USER PROFILE ===============
 
   // Kullanıcı verisini tekil olarak çekme
@@ -349,7 +392,6 @@ class FirestoreService {
     try {
       final doc = await _firestore.collection('users').doc(userId).get();
       if (doc.exists) {
-        // Senin modelindeki fromJson metodunu kullanıyoruz
         return UserModel.fromJson(doc.data()!);
       }
       return null;
@@ -359,18 +401,17 @@ class FirestoreService {
     }
   }
 
-  // Kullanıcı bilgilerini güncelleme (Senin değişken isimlerine göre)
+  // Kullanıcı bilgilerini güncelleme
   Future<void> updateUserProfile({
     required String userId,
-    String? displayName, // 'name' yerine
+    String? displayName,
     String? department,
-    String? year,        // 'grade' yerine
-    String? photoURL,    // 'photoUrl' yerine
+    String? year,
+    String? photoURL,
   }) async {
     try {
       final updateData = <String, dynamic>{};
 
-      // Sadece dolu olan alanları güncelle
       if (displayName != null) updateData['displayName'] = displayName;
       if (department != null) updateData['department'] = department;
       if (year != null) updateData['year'] = year;
@@ -382,4 +423,3 @@ class FirestoreService {
     }
   }
 }
-

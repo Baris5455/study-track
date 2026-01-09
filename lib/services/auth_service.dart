@@ -6,10 +6,7 @@ class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-  // Kullanıcı durumunu dinleme (giriş/çıkış)
   Stream<User?> get authStateChanges => _auth.authStateChanges();
-
-  // Şu anki kullanıcıyı alma
   User? get currentUser => _auth.currentUser;
 
   // Email ve şifre ile kayıt olma
@@ -128,12 +125,13 @@ class AuthService {
         return 'Şifre çok zayıf. En az 6 karakter olmalı.';
       case 'user-disabled':
         return 'Bu hesap devre dışı bırakılmış.';
-      case 'user-not-found':
-        return 'Bu e-posta ile kayıtlı kullanıcı bulunamadı.';
-      case 'wrong-password':
-        return 'Hatalı şifre.';
       case 'too-many-requests':
         return 'Çok fazla deneme yaptınız. Lütfen daha sonra tekrar deneyin.';
+      case 'user-not-found':
+      case 'wrong-password':
+      case 'invalid-credential':
+        return 'E-postanız veya şifreniz yanlış.';
+
       default:
         return 'Bir hata oluştu: ${e.message}';
     }

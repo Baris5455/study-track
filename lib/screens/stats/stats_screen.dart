@@ -19,9 +19,9 @@ class _StatsScreenState extends State<StatsScreen> {
 
   // Veriler
   List<StudySessionModel> _last7DaysSessions = [];
-  Map<String, int> _dailyTotals = {}; // Tarih -> Toplam Dakika
-  Map<String, int> _subjectTotals = {}; // Ders Adı -> Toplam Dakika
-  int _dailyTarget = 120; // Varsayılan hedef
+  Map<String, int> _dailyTotals = {};
+  Map<String, int> _subjectTotals = {};
+  int _dailyTarget = 120;
 
   @override
   void initState() {
@@ -34,13 +34,8 @@ class _StatsScreenState extends State<StatsScreen> {
     try {
       final user = _authService.currentUser;
       if (user != null) {
-        // 1. Son 7 günün kayıtlarını çek
         final sessions = await _firestoreService.getLast7DaysSessions(user.uid);
-
-        // 2. Günlük hedefi çek
         final generalGoals = await _firestoreService.getGeneralGoals(user.uid);
-
-        // 3. Verileri işle
         _processData(sessions);
 
         if (mounted) {
@@ -68,7 +63,6 @@ class _StatsScreenState extends State<StatsScreen> {
     _dailyTotals.clear();
     _subjectTotals.clear();
 
-    // Son 7 günün tarihlerini hazırla (Bugünden geriye)
     final now = DateTime.now();
     for (int i = 0; i < 7; i++) {
       final date = now.subtract(Duration(days: i));
@@ -78,23 +72,18 @@ class _StatsScreenState extends State<StatsScreen> {
 
     // Oturumları döngüye al ve hesapla
     for (var session in sessions) {
-      // 1. Günlük Toplamlar
       final dateKey = _formatDateKey(session.date);
       if (_dailyTotals.containsKey(dateKey)) {
         _dailyTotals[dateKey] = (_dailyTotals[dateKey] ?? 0) + session.durationMinutes;
       }
-
-      // 2. Ders Bazlı Toplamlar
       _subjectTotals[session.subject] = (_subjectTotals[session.subject] ?? 0) + session.durationMinutes;
     }
   }
 
-  // Tarihi "YYYY-MM-DD" formatına çeviren yardımcı
   String _formatDateKey(DateTime date) {
     return "${date.year}-${date.month}-${date.day}";
   }
 
-  // Gün ismini döndüren yardımcı (Pzt, Sal...)
   String _getDayName(DateTime date) {
     const days = ['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz'];
     return days[date.weekday - 1];
@@ -119,21 +108,18 @@ class _StatsScreenState extends State<StatsScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // 1. GRAFİK KARTI
             Text('Son 7 Günlük Çalisma', style: AppStyles.heading3),
             const SizedBox(height: 12),
             _buildWeeklyChartCard(),
 
             const SizedBox(height: 24),
 
-            // 2. GÜNLÜK HEDEF TAMAMLAMA LİSTESİ
             Text('Günlük Hedef Analizi', style: AppStyles.heading3),
             const SizedBox(height: 12),
             _buildDailyGoalsList(),
 
             const SizedBox(height: 24),
 
-            // 3. DERS BAZLI ÖZET
             Text('Ders Bazlı Dagilim (Son 7 Gün)', style: AppStyles.heading3),
             const SizedBox(height: 12),
             _buildSubjectSummaryList(),
@@ -147,13 +133,11 @@ class _StatsScreenState extends State<StatsScreen> {
 
   // === WIDGET: GRAFİK ===
   Widget _buildWeeklyChartCard() {
-    // Grafikteki en yüksek değeri bul (ölçekleme için)
     int maxMinutes = 1; // 0'a bölünmeyi önlemek için min 1
     _dailyTotals.forEach((_, minutes) {
       if (minutes > maxMinutes) maxMinutes = minutes;
     });
 
-    // Son 7 günü tersten sırala (Eskiden yeniye: Soldan sağa)
     final sortedKeys = _dailyTotals.keys.toList().reversed.toList();
 
     return Card(
@@ -174,7 +158,6 @@ class _StatsScreenState extends State<StatsScreen> {
                   final date = DateTime(int.parse(parts[0]), int.parse(parts[1]), int.parse(parts[2]));
 
                   final minutes = _dailyTotals[dateKey] ?? 0;
-                  // Bar yüksekliği oranı (max 120px yükseklik olsun)
                   final double barHeight = (minutes / maxMinutes) * 120;
                   final isToday = _formatDateKey(DateTime.now()) == dateKey;
 
@@ -246,7 +229,7 @@ class _StatsScreenState extends State<StatsScreen> {
           final double progress = (minutes / _dailyTarget).clamp(0.0, 1.0);
           final int percentage = (progress * 100).toInt();
 
-          // Tarih formatı (Örn: 15 Eki Pzt)
+          // Tarih formatı
           final dayName = _getDayName(date);
           final dayNumber = date.day;
           final isToday = index == 0;
@@ -313,7 +296,6 @@ class _StatsScreenState extends State<StatsScreen> {
       );
     }
 
-    // Süreye göre büyükten küçüğe sırala
     final sortedSubjects = _subjectTotals.entries.toList()
       ..sort((a, b) => b.value.compareTo(a.value));
 

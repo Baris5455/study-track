@@ -3,13 +3,11 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 class PostModel {
   final String id;
   final String userId;
-  final String userName; // Performans için ismi burada tutuyoruz
+  final String userName;
   final String message;
   final DateTime createdAt;
-
-  // İleriye dönük opsiyonel alanlar (Şimdilik null veya 0)
   final String? imageUrl;
-  final int likesCount;
+  final List<String> likes;
 
   PostModel({
     required this.id,
@@ -18,7 +16,7 @@ class PostModel {
     required this.message,
     required this.createdAt,
     this.imageUrl,
-    this.likesCount = 0,
+    required this.likes,
   });
 
   Map<String, dynamic> toJson() {
@@ -29,7 +27,7 @@ class PostModel {
       'message': message,
       'createdAt': Timestamp.fromDate(createdAt),
       'imageUrl': imageUrl,
-      'likesCount': likesCount,
+      'likes': likes, // Listeyi kaydediyoruz
     };
   }
 
@@ -41,7 +39,8 @@ class PostModel {
       message: json['message'] ?? '',
       createdAt: (json['createdAt'] as Timestamp).toDate(),
       imageUrl: json['imageUrl'],
-      likesCount: json['likesCount'] ?? 0,
+      // Firestore'dan gelen dynamic listeyi String listesine çeviriyoruz
+      likes: List<String>.from(json['likes'] ?? []),
     );
   }
 }

@@ -22,10 +22,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
   final _firestoreService = FirestoreService();
 
   // Veriler
-  int _totalDailyMinutes = 0; // EKSİK OLAN DEĞİŞKEN EKLENDİ
-  int _totalWeeklyMinutes = 0; // Bu hafta toplam çalışılan
-  int _dailyTarget = 120; // Varsayılan
-  int _weeklyTarget = 840; // Varsayılan
+  int _totalDailyMinutes = 0;
+  int _totalWeeklyMinutes = 0;
+  int _dailyTarget = 120;
+  int _weeklyTarget = 840;
   bool _isLoading = true;
 
   @override
@@ -42,13 +42,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
     try {
       final user = _authService.currentUser;
       if (user != null) {
-        // 1. Genel Hedefleri Çek
         final generalGoals = await _firestoreService.getGeneralGoals(user.uid);
-
-        // 2. Günlük toplam süreyi DOĞRUDAN servisten çek
         final dailyMinutes = await _firestoreService.getTodayTotalMinutes(user.uid);
-
-        // 3. Haftalık toplam süreyi DOĞRUDAN servisten çek
         final weeklyMinutes = await _firestoreService.getThisWeekTotalMinutes(user.uid);
 
         if (mounted) {
@@ -57,7 +52,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               _dailyTarget = generalGoals.dailyTargetMinutes;
               _weeklyTarget = generalGoals.weeklyTargetMinutes;
             }
-            _totalDailyMinutes = dailyMinutes; // Artık hata vermez
+            _totalDailyMinutes = dailyMinutes;
             _totalWeeklyMinutes = weeklyMinutes;
             _isLoading = false;
           });
@@ -95,10 +90,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // 1. KÜÇÜLTÜLMÜŞ ÜST KISIM (HEADER)
             Container(
               width: double.infinity,
-              decoration: BoxDecoration(
+              decoration: const BoxDecoration(
                 color: AppColors.primary,
                 borderRadius: const BorderRadius.only(
                   bottomLeft: Radius.circular(24),
@@ -145,11 +139,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Column(
                 children: [
-                  // 2. GÜNLÜK HEDEF KARTI
                   _buildSummaryCard(
                     title: 'Gunluk Hedef',
                     period: 'Bugun',
-                    currentMinutes: _totalDailyMinutes, // DÜZELTİLDİ: Artık hesaplanan değer
+                    currentMinutes: _totalDailyMinutes,
                     targetMinutes: _dailyTarget,
                     icon: Icons.today,
                     color: AppColors.primary,
@@ -157,7 +150,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
                   const SizedBox(height: 16),
 
-                  // 3. HAFTALIK HEDEF KARTI
                   _buildSummaryCard(
                     title: 'Haftalik Hedef',
                     period: 'Bu Hafta',
@@ -172,7 +164,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
             const SizedBox(height: 24),
 
-            // 4. HIZLI ERİŞİM (GRID)
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Column(
@@ -229,7 +220,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  // Ortak Kart Tasarımı
   Widget _buildSummaryCard({
     required String title,
     required String period,

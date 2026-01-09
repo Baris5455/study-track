@@ -6,7 +6,6 @@ import '../../services/firestore_service.dart';
 import '../../services/storage_service.dart';
 import '../../models/user_model.dart';
 import '../../utils/constants.dart';
-import '../auth/login_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -21,9 +20,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
   final _storageService = StorageService();
 
   // Form Kontrolcüleri
-  final _nameController = TextEditingController();       // displayName için
-  final _departmentController = TextEditingController(); // department için
-  final _yearController = TextEditingController();       // year için (eski kodda grade idi)
+  final _nameController = TextEditingController();
+  final _departmentController = TextEditingController();
+  final _yearController = TextEditingController();
 
   UserModel? _currentUser;
   bool _isLoading = true;
@@ -44,7 +43,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
         final userDoc = await _firestoreService.getUser(user.uid);
         if (userDoc != null) {
           _currentUser = userDoc;
-          // Controllerları senin modeline göre dolduruyoruz
           _nameController.text = userDoc.displayName ?? '';
           _departmentController.text = userDoc.department ?? '';
           _yearController.text = userDoc.year ?? '';
@@ -85,7 +83,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     try {
       String? newPhotoURL;
 
-      // 1. Fotoğraf varsa yükle
       if (_selectedImageFile != null) {
         newPhotoURL = await _storageService.uploadProfilePhoto(
           _currentUser!.uid,
@@ -93,13 +90,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
         );
       }
 
-      // 2. Firestore güncelle (Senin değişken isimlerinle)
       await _firestoreService.updateUserProfile(
         userId: _currentUser!.uid,
         displayName: _nameController.text.trim(),
         department: _departmentController.text.trim(),
-        year: _yearController.text.trim(), // grade yerine year
-        photoURL: newPhotoURL,             // photoUrl yerine photoURL
+        year: _yearController.text.trim(),
+        photoURL: newPhotoURL,
       );
 
       await _loadUserData();
@@ -122,18 +118,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Future<void> _logout() async {
     await _authService.signOut();
-    if (mounted) {
-      Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(builder: (context) => const LoginScreen()),
-            (route) => false,
-      );
-    }
   }
 
   @override
   Widget build(BuildContext context) {
     ImageProvider? backgroundImage;
-    // Modeldeki photoURL ismine dikkat
     if (_selectedImageFile != null) {
       backgroundImage = FileImage(_selectedImageFile!);
     } else if (_currentUser?.photoURL != null && _currentUser!.photoURL!.isNotEmpty) {

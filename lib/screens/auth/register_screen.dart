@@ -40,20 +40,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
           displayName: _nameController.text.trim(),
         );
 
-        // Başarılı kayıt - Ana sayfaya yönlendir
+        // Başarılı kayıt
         if (mounted) {
-          // Önce başarı mesajı göster
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Kayıt başarılı! Hoş geldiniz.'),
+              content: Text('Kayıt başarılı! Giriş yapılıyor...'),
               backgroundColor: Colors.green,
-              duration: Duration(seconds: 1),
             ),
           );
 
-          // Register ekranını kapat, Login ekranına dön
-          // main.dart'taki AuthWrapper otomatik olarak Home'a yönlendirecek
-          Navigator.of(context).pop();
+          Navigator.of(context).popUntil((route) => route.isFirst);
         }
       } catch (e) {
         if (mounted) {

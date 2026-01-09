@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
-import '../../services/auth_service.dart';      // İki nokta (..) yerine (../..)
-import '../../services/firestore_service.dart'; // Çünkü artık bir klasör daha derindeyiz
+import 'package:cloud_firestore/cloud_firestore.dart';
+import '../../services/auth_service.dart';
+import '../../services/firestore_service.dart';
 import '../../models/post_model.dart';
 import '../../utils/constants.dart';
 
@@ -24,14 +25,8 @@ class _CommunityScreenState extends State<CommunityScreen> {
     _loadPosts();
   }
 
-  // Paylaşımları çekme (Pull-to-refresh için de kullanılır)
   Future<void> _loadPosts() async {
-    // Eğer sayfa ilk açılışı değilse loading göstermeden arkada yenile
-    // Ama ilk açılışsa loading göster
-    if (_posts.isEmpty) {
-      setState(() => _isLoading = true);
-    }
-
+    if (_posts.isEmpty) setState(() => _isLoading = true);
     try {
       final posts = await _firestoreService.getPosts();
       if (mounted) {
@@ -43,17 +38,33 @@ class _CommunityScreenState extends State<CommunityScreen> {
     } catch (e) {
       if (mounted) {
         setState(() => _isLoading = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(e.toString()), backgroundColor: Colors.red),
-        );
+        debugPrint(e.toString());
       }
     }
   }
 
-  // Yeni Paylaşım Dialogu
+  Future<void> _handleLike(PostModel post) async {
+    final user = _authService.currentUser;
+    if (user == null) return;
+
+    setState(() {
+      if (post.likes.contains(user.uid)) {
+        post.likes.remove(user.uid);
+      } else {
+        post.likes.add(user.uid);
+      }
+    });
+
+    try {
+      await _firestoreService.toggleLike(post.id, user.uid);
+    } catch (e) {
+      _loadPosts();
+    }
+  }
+
+  // --- YENİ PAYLAŞIM ---
   Future<void> _showAddPostDialog() async {
     final messageController = TextEditingController();
-
     final result = await showDialog<String>(
       context: context,
       builder: (context) => AlertDialog(
@@ -68,10 +79,7 @@ class _CommunityScreenState extends State<CommunityScreen> {
           autofocus: true,
         ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Iptal'),
-          ),
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Iptal')),
           ElevatedButton(
             onPressed: () {
               if (messageController.text.trim().isNotEmpty) {
@@ -89,44 +97,141 @@ class _CommunityScreenState extends State<CommunityScreen> {
     }
   }
 
-  // Paylaşımı kaydetme işlemi
   Future<void> _sharePost(String message) async {
     try {
-      // Loading göster (Basit bir snackbar ile bilgi verelim)
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Paylasiliyor...')),
-      );
-
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Paylasiliyor...')));
       final user = _authService.currentUser;
       if (user != null) {
         await _firestoreService.addPost(
           userId: user.uid,
-          userName: user.displayName ?? 'Kullanici', // İsmi o an kaydediyoruz
+          userName: user.displayName ?? 'Kullanici',
           message: message,
         );
-
-        // Listeyi yenile
         await _loadPosts();
-
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Mesajiniz paylasildi!'),
-              backgroundColor: Colors.green,
-            ),
+            const SnackBar(content: Text('Mesajiniz paylasildi!'), backgroundColor: Colors.green),
           );
         }
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(e.toString()), backgroundColor: Colors.red),
-        );
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString()), backgroundColor: Colors.red));
       }
     }
   }
 
-  // Tarih formatlayıcı (Basit)
+  // --- YORUMLAR PENCERESİ ---
+  void _showCommentsSheet(BuildContext context, PostModel post) {
+    final commentController = TextEditingController();
+    final user = _authService.currentUser;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        return Padding(
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.of(context).viewInsets.bottom,
+          ),
+          child: SizedBox(
+            height: MediaQuery.of(context).size.height * 0.6,
+            child: Column(
+              children: [
+                // Başlık
+                Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Text(
+                    'Yorumlar',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.grey[800]),
+                  ),
+                ),
+                const Divider(height: 1),
+
+                // Yorum Listesi
+                Expanded(
+                  child: StreamBuilder<QuerySnapshot>(
+                    stream: _firestoreService.getCommentsStream(post.id),
+                    builder: (context, snapshot) {
+                      if (snapshot.connectionState == ConnectionState.waiting) {
+                        return const Center(child: CircularProgressIndicator());
+                      }
+                      if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                        return const Center(child: Text("Hic yorum yok. Ilk yorumu sen yaz!"));
+                      }
+
+                      final comments = snapshot.data!.docs;
+
+                      return ListView.builder(
+                        itemCount: comments.length,
+                        itemBuilder: (context, index) {
+                          final commentData = comments[index].data() as Map<String, dynamic>;
+                          final name = commentData['userName'] ?? 'Kullanici';
+                          final msg = commentData['message'] ?? '';
+
+                          return ListTile(
+                            leading: CircleAvatar(
+                              radius: 16,
+                              backgroundColor: Colors.grey[200],
+                              child: Text(name[0].toUpperCase(), style: const TextStyle(fontSize: 12)),
+                            ),
+                            title: Text(name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                            subtitle: Text(msg),
+                          );
+                        },
+                      );
+                    },
+                  ),
+                ),
+
+                // Yorum Yazma Alanı
+                Padding(
+                  padding: const EdgeInsets.all(12.0),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: commentController,
+                          decoration: InputDecoration(
+                            hintText: 'Yorum yap...',
+                            filled: true,
+                            fillColor: Colors.grey[100],
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(24),
+                              borderSide: BorderSide.none,
+                            ),
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      IconButton(
+                        icon: const Icon(Icons.send, color: AppColors.primary),
+                        onPressed: () async {
+                          if (commentController.text.trim().isNotEmpty && user != null) {
+                            await _firestoreService.addComment(
+                                post.id,
+                                user.displayName ?? 'Kullanici',
+                                commentController.text.trim()
+                            );
+                            commentController.clear();
+                          }
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   String _formatDate(DateTime date) {
     return "${date.day}/${date.month}/${date.year} ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}";
   }
@@ -143,7 +248,7 @@ class _CommunityScreenState extends State<CommunityScreen> {
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : RefreshIndicator(
-        onRefresh: _loadPosts, // Aşağı çekince çalışacak fonksiyon
+        onRefresh: _loadPosts,
         child: _posts.isEmpty
             ? _buildEmptyState()
             : ListView.builder(
@@ -164,7 +269,6 @@ class _CommunityScreenState extends State<CommunityScreen> {
 
   Widget _buildEmptyState() {
     return ListView(
-      // ListView kullanıyoruz ki RefreshIndicator çalışabilsin (scrollable olmalı)
       children: [
         SizedBox(height: MediaQuery.of(context).size.height * 0.3),
         const Center(
@@ -186,8 +290,10 @@ class _CommunityScreenState extends State<CommunityScreen> {
   }
 
   Widget _buildPostCard(PostModel post) {
-    // Rastgele profil rengi veya sabit bir renk
     final avatarColor = Colors.primaries[post.userName.length % Colors.primaries.length];
+    final currentUser = _authService.currentUser;
+    final isLiked = currentUser != null && post.likes.contains(currentUser.uid);
+    final likeCount = post.likes.length;
 
     return Card(
       margin: const EdgeInsets.only(bottom: 16),
@@ -242,7 +348,62 @@ class _CommunityScreenState extends State<CommunityScreen> {
               style: const TextStyle(fontSize: 15, height: 1.4),
             ),
 
-            // Alt kısım (Beğeni butonu vs. buraya gelecek - Şimdilik boş)
+            const Divider(height: 24),
+
+            // --- ALT ETKİLEŞİM BUTONLARI ---
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                // Beğeni Butonu
+                Row(
+                  children: [
+                    InkWell(
+                      onTap: () => _handleLike(post),
+                      borderRadius: BorderRadius.circular(20),
+                      child: Padding(
+                        padding: const EdgeInsets.all(8.0),
+                        child: Row(
+                          children: [
+                            Icon(
+                              isLiked ? Icons.favorite : Icons.favorite_border,
+                              color: isLiked ? Colors.red : Colors.grey,
+                              size: 20,
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              likeCount > 0 ? '$likeCount' : 'Begen',
+                              style: TextStyle(
+                                color: isLiked ? Colors.red : Colors.grey[700],
+                                fontWeight: isLiked ? FontWeight.bold : FontWeight.normal,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+
+                // Yorum Butonu
+                InkWell(
+                  onTap: () => _showCommentsSheet(context, post),
+                  borderRadius: BorderRadius.circular(20),
+                  child: Padding(
+                    padding: const EdgeInsets.all(8.0),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.mode_comment_outlined, color: Colors.grey, size: 20),
+                        const SizedBox(width: 6),
+                        Text(
+                          'Yorum Yap',
+                          style: TextStyle(color: Colors.grey[700]),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ],
         ),
       ),
